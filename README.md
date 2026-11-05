@@ -31,14 +31,38 @@ permissions:
 
 jobs:
   conflicts:
-    uses: andes/shared-workflows/.github/workflows/label-merge-conflicts.yml@main
+    uses: andes/shared-workflows/.github/workflows/label-merge-conflicts.yml@v1
     with:
       label: Conflictos
 ```
 
 `with.label` es opcional.
 
+El ref es el tag flotante `v1`. Cada release 1.x lo mueve al commit publicado, así que los callers siguen en la versión 1 sin cambiar el YAML. El tag aparece con el primer release estable 1.x.
+
 Si este repositorio es privado, en Settings → Actions → General → Access hay que permitir que lo usen los demás repositorios de la organización.
+
+## Semantic release
+
+`.github/workflows/semantic-release.yml` publica en GitHub a partir de commits convencionales (`feat`, `fix`, y `BREAKING CHANGE` para un major). El default no publica en npm. Corre en `ubuntu-26.04`, con Node 22, y el token tiene `contents: write`, `issues: write` y `pull-requests: write`.
+
+Después de un release estable mueve el tag `v<major>` a ese commit. `v1` sigue a la línea 1.x. Un prerelease no lo mueve.
+
+`.github/workflows/release.yml` lo dispara en cada push a `main`, llamando al archivo de este mismo commit. La llamada de este repo a `andes/shared-workflows/.github/workflows/semantic-release.yml@v1` queda pendiente: el tag todavía no existe.
+
+Otro repo lo usa así, con los mismos permisos:
+
+```yaml
+jobs:
+  release:
+    uses: andes/shared-workflows/.github/workflows/semantic-release.yml@v1
+    secrets:
+      npm_token: ${{ secrets.NPM_TOKEN }}
+    with:
+      skip_npm: false
+```
+
+`skip_npm` default es `true`. `npm_token` hace falta solo cuando se publica en npm. `branches` default es `['main']`.
 
 ## Dependabot
 
