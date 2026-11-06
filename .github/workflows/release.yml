@@ -16,3 +16,4 @@ jobs:
     uses: ./.github/workflows/semantic-release.yml
     with:
       branches: "['main']"
+      skip_npm: false

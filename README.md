@@ -48,7 +48,7 @@ Si este repositorio es privado, en Settings → Actions → General → Access h
 
 ## Semantic release
 
-`.github/workflows/semantic-release.yml` publica en GitHub a partir de commits convencionales (`feat`, `fix`, y `BREAKING CHANGE` para un major). El default no publica en npm. Corre en `ubuntu-26.04`, con Node 22, y el token tiene `contents: write`, `issues: write` y `pull-requests: write`.
+`.github/workflows/semantic-release.yml` publica en GitHub a partir de commits convencionales (`feat`, `fix`, y `BREAKING CHANGE` para un major). En este repo, `.releaserc.json` también publica un patch por los bumps de Dependabot (`build(deps)` y `chore(deps)`), así el tag `v1` se mueve y los callers reciben el pin nuevo. El default no publica en npm. Corre en `ubuntu-26.04`, con Node 22, y el token tiene `contents: write`, `issues: write` y `pull-requests: write`.
 
 Después de un release estable mueve el tag `v<major>` a ese commit. `v1` sigue a la línea 1.x. Un prerelease no lo mueve.
 
@@ -73,4 +73,4 @@ jobs:
 
 ## Dependabot
 
-`.github/dependabot.yml` abre un pull request semanal con las actualizaciones de GitHub Actions, agrupadas en un solo PR. Cada `uses` está pineado a un commit, con el comentario de versión en la misma línea (`# vX.Y.Z`). Dependabot usa ese comentario para proponer el bump, incluidos los majors.
+`.github/dependabot.yml` abre un pull request semanal con las actualizaciones de GitHub Actions, agrupadas en un solo PR. El mensaje es `fix(deps)`, que también publica un patch. Cada `uses` está pineado a un commit, con el comentario de versión en la misma línea (`# vX.Y.Z`). Dependabot usa ese comentario para proponer el bump, incluidos los majors.
