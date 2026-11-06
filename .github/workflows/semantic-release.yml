@@ -1,0 +1,106 @@
+name: Semantic release
+
+# Publica según los commits convencionales y mueve el tag flotante v<major>.
+# Los callers quedan en @v1 y reciben cada 1.x. Un 2.0.0 mueve v2 y deja v1 quieto.
+on:
+  workflow_call:
+    inputs:
+      branches:
+        description: >
+          Ramas de publicación, con la sintaxis de branches de semantic-release.
+          Pisa el branches de la config del repo. El default es main.
+          api y app publican desde master y tienen que pasar ['master'].
+        required: false
+        type: string
+        default: "['main']"
+      skip_npm:
+        description: Si es true, no publica en npm y reemplaza los plugins de la config del repo.
+        required: false
+        type: boolean
+        default: true
+    secrets:
+      release_token:
+        description: Token para publicar. Si no se pasa, usa el GITHUB_TOKEN del caller.
+        required: false
+      npm_token:
+        description: Token de npm. Hace falta cuando skip_npm es false y el paquete se publica.
+        required: false
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+
+jobs:
+  release:
+    runs-on: ubuntu-26.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+
+      - name: Semantic release
+        id: semantic
+        uses: cycjimmy/semantic-release-action@ad51787758d9654d5a75150a89a6fa9b3ccef95e # v8.1.4
+        with:
+          semantic_version: 25.0.9
+          branches: ${{ inputs.branches }}
+          skip_npm_plugin: ${{ inputs.skip_npm }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.release_token || secrets.GITHUB_TOKEN }}
+          NPM_TOKEN: ${{ secrets.npm_token }}
+
+      - name: Mover el tag flotante
+        if: steps.semantic.outputs.new_release_published == 'true'
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
+        env:
+          RELEASE_MAJOR: ${{ steps.semantic.outputs.new_release_major_version }}
+          RELEASE_SHA: ${{ steps.semantic.outputs.new_release_git_head }}
+          RELEASE_CHANNEL: ${{ steps.semantic.outputs.new_release_channel }}
+        with:
+          github-token: ${{ secrets.release_token || secrets.GITHUB_TOKEN }}
+          script: |
+            const channel = process.env.RELEASE_CHANNEL;
+            if (channel && channel !== "undefined" && channel !== "null") {
+              core.info(`Release en el canal ${channel}. El tag flotante queda donde está.`);
+              return;
+            }
+
+            const major = process.env.RELEASE_MAJOR;
+            const sha = process.env.RELEASE_SHA;
+            if (!major || !sha) {
+              throw new Error("Faltan el major o el commit del release.");
+            }
+
+            const tag = `v${major}`;
+            const { owner, repo } = context.repo;
+
+            try {
+              await github.rest.git.updateRef({
+                owner,
+                repo,
+                ref: `tags/${tag}`,
+                sha,
+                force: true,
+              });
+              core.info(`Tag ${tag} movido a ${sha}.`);
+            } catch (error) {
+              const status = error.status ?? error.response?.status;
+              if (status !== 404) {
+                throw error;
+              }
+              await github.rest.git.createRef({
+                owner,
+                repo,
+                ref: `refs/tags/${tag}`,
+                sha,
+              });
+              core.info(`Tag ${tag} creado en ${sha}.`);
+            }
