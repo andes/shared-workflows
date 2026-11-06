@@ -6,18 +6,24 @@ on:
   workflow_call:
     inputs:
       branches:
-        description: Ramas de publicación, con la sintaxis de branches de semantic-release.
+        description: >
+          Ramas de publicación, con la sintaxis de branches de semantic-release.
+          Pisa el branches de la config del repo. El default es main.
+          api y app publican desde master y tienen que pasar ['master'].
         required: false
         type: string
         default: "['main']"
       skip_npm:
-        description: Si es true, no publica en npm.
+        description: Si es true, no publica en npm y reemplaza los plugins de la config del repo.
         required: false
         type: boolean
         default: true
     secrets:
+      github_token:
+        description: Token para publicar. Si no se pasa, usa el GITHUB_TOKEN del caller.
+        required: false
       npm_token:
-        description: Token de npm. Hace falta cuando skip_npm es false.
+        description: Token de npm. Hace falta cuando skip_npm es false y el paquete se publica.
         required: false
 
 permissions:
@@ -48,7 +54,7 @@ jobs:
           branches: ${{ inputs.branches }}
           skip_npm_plugin: ${{ inputs.skip_npm }}
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.github_token || secrets.GITHUB_TOKEN }}
           NPM_TOKEN: ${{ secrets.npm_token }}
 
       - name: Mover el tag flotante
@@ -59,6 +65,7 @@ jobs:
           RELEASE_SHA: ${{ steps.semantic.outputs.new_release_git_head }}
           RELEASE_CHANNEL: ${{ steps.semantic.outputs.new_release_channel }}
         with:
+          github-token: ${{ secrets.github_token || secrets.GITHUB_TOKEN }}
           script: |
             const channel = process.env.RELEASE_CHANNEL;
             if (channel && channel !== "undefined" && channel !== "null") {

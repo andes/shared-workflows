@@ -54,19 +54,22 @@ Después de un release estable mueve el tag `v<major>` a ese commit. `v1` sigue 
 
 `.github/workflows/release.yml` lo dispara en cada push a `main`, llamando al archivo de este mismo commit. La llamada de este repo a `andes/shared-workflows/.github/workflows/semantic-release.yml@v1` queda pendiente: el tag todavía no existe.
 
-Otro repo lo usa así, con los mismos permisos:
+`branches` default es `['main']` y pisa el `branches` de la config del repo. `skip_npm` default es `true`: con eso no se publica en npm y se reemplazan los plugins de esa config. `npm_token` hace falta solo cuando el paquete se publica. `github_token` es opcional; si no está, se usa el `GITHUB_TOKEN` del caller.
+
+api y app publican desde `master`. El caller tiene que pasar esa rama. Esos repos ya tienen la config de semantic-release en `package.json` (`changelog`, `git`, `npmPublish: false`) y el secreto `DEPLOY_TOKEN`, así que no hay que crear otro.
 
 ```yaml
 jobs:
   release:
     uses: andes/shared-workflows/.github/workflows/semantic-release.yml@v1
     secrets:
-      npm_token: ${{ secrets.NPM_TOKEN }}
+      github_token: ${{ secrets.DEPLOY_TOKEN }}
     with:
+      branches: "['master']"
       skip_npm: false
 ```
 
-`skip_npm` default es `true`. `npm_token` hace falta solo cuando se publica en npm. `branches` default es `['main']`.
+`skip_npm: false` deja los plugins del `package.json`. El cron de cada repo queda en el caller.
 
 ## Dependabot
 
