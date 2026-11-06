@@ -19,7 +19,7 @@ on:
         type: boolean
         default: true
     secrets:
-      github_token:
+      release_token:
         description: Token para publicar. Si no se pasa, usa el GITHUB_TOKEN del caller.
         required: false
       npm_token:
@@ -54,7 +54,7 @@ jobs:
           branches: ${{ inputs.branches }}
           skip_npm_plugin: ${{ inputs.skip_npm }}
         env:
-          GITHUB_TOKEN: ${{ secrets.github_token || secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.release_token || secrets.GITHUB_TOKEN }}
           NPM_TOKEN: ${{ secrets.npm_token }}
 
       - name: Mover el tag flotante
@@ -65,7 +65,7 @@ jobs:
           RELEASE_SHA: ${{ steps.semantic.outputs.new_release_git_head }}
           RELEASE_CHANNEL: ${{ steps.semantic.outputs.new_release_channel }}
         with:
-          github-token: ${{ secrets.github_token || secrets.GITHUB_TOKEN }}
+          github-token: ${{ secrets.release_token || secrets.GITHUB_TOKEN }}
           script: |
             const channel = process.env.RELEASE_CHANNEL;
             if (channel && channel !== "undefined" && channel !== "null") {
