@@ -6,7 +6,7 @@ on:
   workflow_call:
     inputs:
       configuration-path:
-        description: Ruta del archivo de globs, en el formato de actions/labeler v5 o posterior.
+        description: Ruta del archivo de globs, en el formato de actions/labeler v7.
         required: false
         type: string
         default: .github/labeler.yml

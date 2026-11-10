@@ -44,7 +44,7 @@ jobs:
 
 ## Labeler
 
-`.github/workflows/labeler.yml` aplica labels según los archivos que toca el pull request. Usa `actions/labeler` v7, pinneado, en `ubuntu-26.04`. La config de globs no vive acá: cada repo mantiene su `.github/labeler.yml` en el formato de v5.
+`.github/workflows/labeler.yml` aplica labels según los archivos que toca el pull request. Usa `actions/labeler` v7.0.0 pinneado (`bf12e9b00b37c5c0ca2b87b79b2daf7891dbda13`) en `ubuntu-26.04`. La config de globs no vive acá: cada repo mantiene su `.github/labeler.yml` en el formato de v7.
 
 ```yaml
 name: Pull Request Labeler
