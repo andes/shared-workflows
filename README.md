@@ -42,6 +42,65 @@ jobs:
 
 `with.label` es opcional.
 
+## Labeler
+
+`.github/workflows/labeler.yml` aplica labels según los archivos que toca el pull request. Usa `actions/labeler` v7, pinneado, en `ubuntu-26.04`. La config de globs no vive acá: cada repo mantiene su `.github/labeler.yml` en el formato de v5.
+
+```yaml
+name: Pull Request Labeler
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  triage:
+    uses: andes/shared-workflows/.github/workflows/labeler.yml@v1
+```
+
+En api el archivo de globs queda así:
+
+```yaml
+script:
+  - changed-files:
+      - any-glob-to-any-file: scripts/*
+config:
+  - changed-files:
+      - any-glob-to-any-file: config.private.ts.example
+```
+
+`configuration-path`, `sync-labels` y `dot` son inputs. Los defaults son `.github/labeler.yml`, `false` y `true`.
+
+## Node CI
+
+`.github/workflows/node-ci.yml` hace checkout, instala Node y corre los comandos del caller. No incluye el `cp` de la config ni el límite de memoria de `tsc`: eso es de api y entra en `commands`. El runner default es `ubuntu-26.04`. api pasa `ubuntu-22.04` para conservar el build actual. Node default es `22.x` y el install default es `npm ci`.
+
+```yaml
+name: Build and test
+
+on: [push]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    uses: andes/shared-workflows/.github/workflows/node-ci.yml@v1
+    with:
+      runner: ubuntu-22.04
+      node-version: 22.x
+      commands: |
+        cp config.private.ts.example config.private.ts
+        npm run lint
+        NODE_OPTIONS=--max-old-space-size=4096 npm run tsc
+        npm run test
+```
+
+Los comandos llegan por variable de entorno y se ejecutan con `bash -euo pipefail`.
+
 El ref es el tag flotante `v1`. Cada release 1.x lo mueve al commit publicado, así que los callers siguen en la versión 1 sin cambiar el YAML. El tag aparece con el primer release estable 1.x.
 
 Si este repositorio es privado, en Settings → Actions → General → Access hay que permitir que lo usen los demás repositorios de la organización.
