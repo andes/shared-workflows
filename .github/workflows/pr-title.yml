@@ -1,0 +1,33 @@
+name: PR title
+
+# El squash usa el título como mensaje. semantic-release solo lee la primera línea.
+on:
+  workflow_call:
+
+permissions:
+  pull-requests: read
+
+jobs:
+  title:
+    runs-on: ubuntu-26.04
+    steps:
+      - name: Título convencional
+        uses: amannn/action-semantic-pull-request@2252a14e810aa9b85c2d560bd7070c802206ecf6 # v6.1.2
+        with:
+          types: |
+            feat
+            fix
+            perf
+            refactor
+            chore
+            docs
+            style
+            test
+            build
+            ci
+            revert
+          requireScope: false
+          subjectPattern: '^\S.*$'
+          subjectPatternError: 'El subject "{subject}" del título "{title}" tiene que ser una descripción no vacía.'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

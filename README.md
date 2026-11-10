@@ -71,6 +71,31 @@ jobs:
 
 `skip_npm: false` deja los plugins del `package.json`. El cron de cada repo queda en el caller.
 
+## Título del pull request
+
+`.github/workflows/pr-title.yml` falla el pull request si el título no es un commit convencional: `tipo(scope): descripción`. El tipo va en minúscula y el scope es opcional. El subject no puede quedar vacío. `Feat:` y `Chore:` fallan.
+
+Cuando el merge es squash, GitHub usa ese título como mensaje del commit. semantic-release solo lee la primera línea, así que el título es el mensaje que publica.
+
+El revert que arma GitHub se llama `Revert "..."`. Ese título falla. Hay que retitularlo a `revert:` antes de mergear. `revert: feat(scope): descripción` pasa.
+
+`.github/workflows/pr-title-check.yml` llama al archivo de este mismo commit en `pull_request` (`opened`, `edited`, `synchronize`, `reopened`). No corre en un push a `main`.
+
+```yaml
+name: PR title
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+
+permissions:
+  pull-requests: read
+
+jobs:
+  title:
+    uses: andes/shared-workflows/.github/workflows/pr-title.yml@v1
+```
+
 ## Lint
 
 `.github/workflows/lint.yml` corre actionlint 1.7.12 en cada `push` y `pull_request`. Revisa la sintaxis de los workflows de este repositorio, las expresiones `${{ }}` y los scripts de `run`. El binario se baja del release y se verifica con SHA-256. Los errores quedan anotados en el diff con `.github/actionlint-matcher.json`.

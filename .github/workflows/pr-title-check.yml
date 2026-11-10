@@ -1,0 +1,13 @@
+name: PR title
+
+# No corre en push a main: el squash ya usó el título.
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+
+permissions:
+  pull-requests: read
+
+jobs:
+  title:
+    uses: ./.github/workflows/pr-title.yml
