@@ -16,3 +16,4 @@ jobs:
     uses: ./.github/workflows/semantic-release.yml
     with:
       branches: "['main']"
+      floating_tag: true

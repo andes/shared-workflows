@@ -1,0 +1,37 @@
+name: Labeler
+
+# El caller lo dispara con pull_request. Los globs quedan en el repo que llama.
+# actions/labeler v7 lee esa config por la API y no hace checkout del head.
+on:
+  workflow_call:
+    inputs:
+      configuration-path:
+        description: Ruta del archivo de globs, en el formato de actions/labeler v7.
+        required: false
+        type: string
+        default: .github/labeler.yml
+      sync-labels:
+        description: Saca los labels cuando los archivos ya no matchean.
+        required: false
+        type: boolean
+        default: false
+      dot:
+        description: Incluye paths que empiezan con punto.
+        required: false
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  triage:
+    runs-on: ubuntu-26.04
+    steps:
+      - name: Labeler
+        uses: actions/labeler@bf12e9b00b37c5c0ca2b87b79b2daf7891dbda13 # v7.0.0
+        with:
+          configuration-path: ${{ inputs.configuration-path }}
+          sync-labels: ${{ inputs.sync-labels }}
+          dot: ${{ inputs.dot }}
