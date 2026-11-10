@@ -1,0 +1,52 @@
+name: Node CI
+
+# Checkout, Node y un install. Los comandos de lint, build y test los pasa el caller.
+on:
+  workflow_call:
+    inputs:
+      node-version:
+        description: Versión de Node para setup-node.
+        required: false
+        type: string
+        default: 22.x
+      runner:
+        description: Runner del job. api hoy usa ubuntu-22.04.
+        required: false
+        type: string
+        default: ubuntu-26.04
+      install:
+        description: Comando de instalación.
+        required: false
+        type: string
+        default: npm ci
+      commands:
+        description: Comandos de shell, uno por línea, después del install.
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ${{ inputs.runner }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ inputs.node-version }}
+
+      - name: Instalar
+        env:
+          INSTALL: ${{ inputs.install }}
+        run: bash --noprofile --norc -euo pipefail -c "$INSTALL"
+
+      - name: Verificar
+        env:
+          COMMANDS: ${{ inputs.commands }}
+        run: bash --noprofile --norc -euo pipefail -c "$COMMANDS"

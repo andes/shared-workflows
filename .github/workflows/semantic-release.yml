@@ -1,7 +1,8 @@
 name: Semantic release
 
-# Publica según los commits convencionales y mueve el tag flotante v<major>.
-# Los callers quedan en @v1 y reciben cada 1.x. Un 2.0.0 mueve v2 y deja v1 quieto.
+# Publica según los commits convencionales.
+# El tag flotante v<major> es opt-in y viene apagado. shared-workflows lo prende
+# para que @v1 siga la línea 1. Un 2.0.0 mueve v2 y deja v1 quieto.
 on:
   workflow_call:
     inputs:
@@ -14,10 +15,24 @@ on:
         type: string
         default: "['main']"
       skip_npm:
-        description: Si es true, no publica en npm y reemplaza los plugins de la config del repo.
+        description: >
+          Si es true, no publica en npm y reemplaza los plugins de la config del repo.
+          Si es false, usa esos plugins y corre npm ci solo si hay package-lock.json.
         required: false
         type: boolean
         default: true
+      dry_run:
+        description: Si es true, analiza sin publicar y sin mover el tag flotante.
+        required: false
+        type: boolean
+        default: false
+      floating_tag:
+        description: >
+          Si es true, después de un release estable mueve el tag v<major>.
+          Default false. Un prerelease no lo mueve.
+        required: false
+        type: boolean
+        default: false
     secrets:
       release_token:
         description: Token para publicar. Si no se pasa, usa el GITHUB_TOKEN del caller.
@@ -46,6 +61,15 @@ jobs:
         with:
           node-version: 22
 
+      - name: Instalar dependencias
+        if: inputs.skip_npm == false
+        run: |
+          if [[ -f package-lock.json ]]; then
+            npm ci
+          else
+            echo "No hay package-lock.json. Se usa la config del repo sin instalar."
+          fi
+
       - name: Semantic release
         id: semantic
         uses: cycjimmy/semantic-release-action@ad51787758d9654d5a75150a89a6fa9b3ccef95e # v8.1.4
@@ -53,12 +77,13 @@ jobs:
           semantic_version: 25.0.9
           branches: ${{ inputs.branches }}
           skip_npm_plugin: ${{ inputs.skip_npm }}
+          dry_run: ${{ inputs.dry_run }}
         env:
           GITHUB_TOKEN: ${{ secrets.release_token || secrets.GITHUB_TOKEN }}
           NPM_TOKEN: ${{ secrets.npm_token }}
 
       - name: Mover el tag flotante
-        if: steps.semantic.outputs.new_release_published == 'true'
+        if: inputs.floating_tag == true && inputs.dry_run == false && steps.semantic.outputs.new_release_published == 'true'
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
           RELEASE_MAJOR: ${{ steps.semantic.outputs.new_release_major_version }}
