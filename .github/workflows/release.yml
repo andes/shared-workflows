@@ -17,3 +17,4 @@ jobs:
     with:
       branches: "['main']"
       floating_tag: true
+      skip_npm: false

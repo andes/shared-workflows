@@ -17,7 +17,7 @@ on:
       skip_npm:
         description: >
           Si es true, no publica en npm y reemplaza los plugins de la config del repo.
-          Si es false, corre npm ci y usa esos plugins.
+          Si es false, usa esos plugins y corre npm ci solo si hay package-lock.json.
         required: false
         type: boolean
         default: true
@@ -63,7 +63,12 @@ jobs:
 
       - name: Instalar dependencias
         if: inputs.skip_npm == false
-        run: npm ci
+        run: |
+          if [[ -f package-lock.json ]]; then
+            npm ci
+          else
+            echo "No hay package-lock.json. Se usa la config del repo sin instalar."
+          fi
 
       - name: Semantic release
         id: semantic

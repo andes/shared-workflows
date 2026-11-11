@@ -107,13 +107,13 @@ Si este repositorio es privado, en Settings → Actions → General → Access h
 
 ## Semantic release
 
-`.github/workflows/semantic-release.yml` publica en GitHub a partir de commits convencionales (`feat`, `fix`, y `BREAKING CHANGE` para un major). El default no publica en npm. Corre en `ubuntu-26.04`, con Node 22, y el token tiene `contents: write`, `issues: write` y `pull-requests: write`.
+`.github/workflows/semantic-release.yml` publica en GitHub a partir de commits convencionales (`feat`, `fix`, y `BREAKING CHANGE` para un major). En este repo, `.releaserc.json` también publica un patch por los bumps de Dependabot (`build(deps)` y `chore(deps)`), así el tag `v1` se mueve y los callers reciben el pin nuevo. El default no publica en npm. Corre en `ubuntu-26.04`, con Node 22, y el token tiene `contents: write`, `issues: write` y `pull-requests: write`.
 
 `floating_tag` default es `false`: no mueve tags. En `true`, después de un release estable mueve `v<major>` a ese commit. Un prerelease no lo mueve. Este repo lo prende en su caller para que `v1` siga la línea 1.x. Un 2.0.0 mueve `v2` y deja `v1` quieto.
 
 `.github/workflows/release.yml` lo dispara en cada push a `main`, llamando al archivo de este mismo commit. La llamada de este repo a `andes/shared-workflows/.github/workflows/semantic-release.yml@v1` queda pendiente: el tag todavía no existe.
 
-`branches` default es `['main']` y pisa el `branches` de la config del repo. `skip_npm` default es `true`: con eso no se publica en npm y se reemplazan los plugins de esa config. En `false` corre `npm ci` y usa los plugins del repo. `dry_run` default es `false`. En `true` analiza y no publica. El tag flotante, si está prendido, tampoco se mueve: la action igual informa un release, así que ese paso mira los dos inputs. `npm_token` hace falta solo cuando el paquete se publica. `release_token` es opcional; si no está, se usa el `GITHUB_TOKEN` del caller.
+`branches` default es `['main']` y pisa el `branches` de la config del repo. `skip_npm` default es `true`: con eso no se publica en npm y se reemplazan los plugins de esa config. En `false` usa los plugins de la config del repo y corre `npm ci` solo si hay `package-lock.json`. `dry_run` default es `false`. En `true` analiza y no publica. El tag flotante, si está prendido, tampoco se mueve: la action igual informa un release, así que ese paso mira los dos inputs. `npm_token` hace falta solo cuando el paquete se publica. `release_token` es opcional; si no está, se usa el `GITHUB_TOKEN` del caller.
 
 api y app publican desde `master`. El caller tiene que pasar esa rama. Esos repos ya tienen la config de semantic-release en `package.json` (`changelog`, `git`, `npmPublish: false`) y el secreto `DEPLOY_TOKEN`, así que no hay que crear otro.
 
@@ -164,4 +164,4 @@ actionlint 1.7.12 no conoce el runner `ubuntu-26.04`. `.github/actionlint.yaml` 
 
 ## Dependabot
 
-`.github/dependabot.yml` abre un pull request semanal con las actualizaciones de GitHub Actions, agrupadas en un solo PR. Cada `uses` está pineado a un commit, con el comentario de versión en la misma línea (`# vX.Y.Z`). Dependabot usa ese comentario para proponer el bump, incluidos los majors.
+`.github/dependabot.yml` abre un pull request semanal con las actualizaciones de GitHub Actions, agrupadas en un solo PR. El mensaje es `fix(deps)`, que también publica un patch. Cada `uses` está pineado a un commit, con el comentario de versión en la misma línea (`# vX.Y.Z`). Dependabot usa ese comentario para proponer el bump, incluidos los majors.
