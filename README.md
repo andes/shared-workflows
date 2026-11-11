@@ -131,6 +131,37 @@ jobs:
 
 `skip_npm: false` deja los plugins del `package.json`. `dry_run: true` sirve para probar ese análisis en `master` sin publicar. El cron de cada repo queda en el caller.
 
+## Título del pull request
+
+`.github/workflows/pr-title.yml` falla el pull request si el título no es un commit convencional: `tipo(scope): descripción`. El tipo va en minúscula y el scope es opcional. El subject no puede quedar vacío. `Feat:` y `Chore:` fallan.
+
+Cuando el merge es squash, GitHub usa ese título como mensaje del commit. semantic-release solo lee la primera línea, así que el título es el mensaje que publica.
+
+El revert que arma GitHub se llama `Revert "..."`. Ese título falla. Hay que retitularlo a `revert:` antes de mergear. `revert: feat(scope): descripción` pasa.
+
+`.github/workflows/pr-title-check.yml` llama al archivo de este mismo commit en `pull_request` (`opened`, `edited`, `synchronize`, `reopened`). No corre en un push a `main`.
+
+```yaml
+name: PR title
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+
+permissions:
+  pull-requests: read
+
+jobs:
+  title:
+    uses: andes/shared-workflows/.github/workflows/pr-title.yml@v1
+```
+
+## Lint
+
+`.github/workflows/lint.yml` corre actionlint 1.7.12 en cada `push` y `pull_request`. Revisa la sintaxis de los workflows de este repositorio, las expresiones `${{ }}` y los scripts de `run`. El binario se baja del release y se verifica con SHA-256. Los errores quedan anotados en el diff con `.github/actionlint-matcher.json`.
+
+actionlint 1.7.12 no conoce el runner `ubuntu-26.04`. `.github/actionlint.yaml` lo declara para que el check no falle por ese label.
+
 ## Dependabot
 
 `.github/dependabot.yml` abre un pull request semanal con las actualizaciones de GitHub Actions, agrupadas en un solo PR. Cada `uses` está pineado a un commit, con el comentario de versión en la misma línea (`# vX.Y.Z`). Dependabot usa ese comentario para proponer el bump, incluidos los majors.
