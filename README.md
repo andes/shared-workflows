@@ -156,6 +156,51 @@ jobs:
     uses: andes/shared-workflows/.github/workflows/pr-title.yml@v1
 ```
 
+## Imagen de Docker
+
+`.github/workflows/docker-image.yml` construye una imagen y la publica en Docker Hub. El registry es Docker Hub, en el namespace `andesnqn`. No es GHCR ni Artifactory. El nombre de la imagen llega por input; el workflow no lo deja fijo.
+
+El primer caller es `andes/api`: imagen `andesnqn/api`, Dockerfile en la raíz del repo. `dockerfile` default es `Dockerfile` y `context` default es `.`, así que ese caller no los pasa.
+
+Corre en `ubuntu-latest`. Los repos son públicos. El token tiene `contents: read`. Hace checkout del repo que llama, con `persist-credentials: false`, entra a Docker Hub, y hace build y push de `linux/amd64`. El push no es opcional.
+
+`image` es el nombre en Docker Hub, sin tag y en minúsculas. `tags` es uno o más tags separados por coma. Cada tag tiene que matchear `^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$`. Si alguno no matchea, el job falla antes del build. `feat/PACS-7` no es un tag válido. El caller pasa el SHA corto del commit.
+
+Los secrets `dockerhub_username` y `dockerhub_token` son requeridos. El caller los pasa desde `secrets.DOCKERHUB_USERNAME` y `secrets.DOCKERHUB_TOKEN` de su propio repo. Este repositorio no los declara.
+
+El tag flotante `v1` está en `4c9413a` y no incluye este archivo hasta el próximo release 1.x. El caller de prueba apunta al SHA del commit, no a `@v1`. Después de ese release, el ref pasa a `@v1`.
+
+```yaml
+name: Docker image
+
+on:
+  push:
+    branches: [master]
+
+permissions:
+  contents: read
+
+jobs:
+  sha:
+    runs-on: ubuntu-latest
+    outputs:
+      short: ${{ steps.out.outputs.short }}
+    steps:
+      - id: out
+        run: echo "short=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+
+  image:
+    needs: sha
+    # El caller de prueba reemplaza @v1 por el SHA del commit.
+    uses: andes/shared-workflows/.github/workflows/docker-image.yml@v1
+    with:
+      image: andesnqn/api
+      tags: ${{ needs.sha.outputs.short }}
+    secrets:
+      dockerhub_username: ${{ secrets.DOCKERHUB_USERNAME }}
+      dockerhub_token: ${{ secrets.DOCKERHUB_TOKEN }}
+```
+
 ## Lint
 
 `.github/workflows/lint.yml` corre actionlint 1.7.12 en cada `push` y `pull_request`. Revisa la sintaxis de los workflows de este repositorio, las expresiones `${{ }}` y los scripts de `run`. El binario se baja del release y se verifica con SHA-256. Los errores quedan anotados en el diff con `.github/actionlint-matcher.json`.
