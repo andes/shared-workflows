@@ -191,7 +191,6 @@ jobs:
 
   image:
     needs: sha
-    # El caller de prueba reemplaza @v1 por el SHA del commit.
     uses: andes/shared-workflows/.github/workflows/docker-image.yml@v1
     with:
       image: andesnqn/api

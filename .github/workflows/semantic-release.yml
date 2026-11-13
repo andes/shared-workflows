@@ -100,7 +100,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.release_token || secrets.GITHUB_TOKEN }}
           NPM_TOKEN: ${{ secrets.npm_token }}
 
-      # Un dry run también puede informar un release. Acá no cuenta.
       - name: Datos del release
         id: published
         if: steps.semantic.outputs.new_release_published == 'true' && inputs.dry_run == false
@@ -157,7 +156,6 @@ jobs:
             } catch (error) {
               const status = error.status ?? error.response?.status;
               const message = `${error.message || ""} ${error.response?.data?.message || ""}`;
-              // Sin el tag, updateRef responde 422, no 404.
               const missing = status === 404 || (status === 422 && message.includes("Reference does not exist"));
               if (!missing) {
                 throw error;
