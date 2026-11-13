@@ -1,8 +1,5 @@
 name: Semantic release
 
-# Publica según los commits convencionales.
-# El tag flotante v<major> es opt-in y viene apagado. shared-workflows lo prende
-# para que @v1 siga la línea 1. Un 2.0.0 mueve v2 y deja v1 quieto.
 on:
   workflow_call:
     inputs:
