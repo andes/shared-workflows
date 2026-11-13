@@ -1,8 +1,5 @@
 name: Semantic release
 
-# Publica según los commits convencionales.
-# El tag flotante v<major> es opt-in y viene apagado. shared-workflows lo prende
-# para que @v1 siga la línea 1. Un 2.0.0 mueve v2 y deja v1 quieto.
 on:
   workflow_call:
     inputs:
@@ -40,6 +37,19 @@ on:
       npm_token:
         description: Token de npm. Hace falta cuando skip_npm es false y el paquete se publica.
         required: false
+    outputs:
+      published:
+        description: true si publicó un release. Un dry run queda en false.
+        value: ${{ jobs.release.outputs.published }}
+      version:
+        description: Versión publicada, sin la v. Ejemplo 5.148.1.
+        value: ${{ jobs.release.outputs.version }}
+      sha:
+        description: Commit del release.
+        value: ${{ jobs.release.outputs.sha }}
+      short_sha:
+        description: SHA corto del commit del release.
+        value: ${{ jobs.release.outputs.short_sha }}
 
 permissions:
   contents: write
@@ -49,6 +59,11 @@ permissions:
 jobs:
   release:
     runs-on: ubuntu-26.04
+    outputs:
+      published: ${{ steps.published.conclusion == 'success' }}
+      version: ${{ steps.published.outputs.version }}
+      sha: ${{ steps.published.outputs.sha }}
+      short_sha: ${{ steps.published.outputs.short_sha }}
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -81,6 +96,25 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.release_token || secrets.GITHUB_TOKEN }}
           NPM_TOKEN: ${{ secrets.npm_token }}
+
+      - name: Datos del release
+        id: published
+        if: steps.semantic.outputs.new_release_published == 'true' && inputs.dry_run == false
+        shell: bash
+        env:
+          RELEASE_VERSION: ${{ steps.semantic.outputs.new_release_version }}
+          RELEASE_SHA: ${{ steps.semantic.outputs.new_release_git_head }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${RELEASE_VERSION}" || -z "${RELEASE_SHA}" ]]; then
+            echo "::error::Faltan la versión o el commit del release."
+            exit 1
+          fi
+          {
+            echo "version=${RELEASE_VERSION}"
+            echo "sha=${RELEASE_SHA}"
+            echo "short_sha=${RELEASE_SHA:0:7}"
+          } >> "${GITHUB_OUTPUT}"
 
       - name: Mover el tag flotante
         if: inputs.floating_tag == true && inputs.dry_run == false && steps.semantic.outputs.new_release_published == 'true'
@@ -118,7 +152,9 @@ jobs:
               core.info(`Tag ${tag} movido a ${sha}.`);
             } catch (error) {
               const status = error.status ?? error.response?.status;
-              if (status !== 404) {
+              const message = `${error.message || ""} ${error.response?.data?.message || ""}`;
+              const missing = status === 404 || (status === 422 && message.includes("Reference does not exist"));
+              if (!missing) {
                 throw error;
               }
               await github.rest.git.createRef({
