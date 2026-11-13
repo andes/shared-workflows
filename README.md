@@ -162,7 +162,7 @@ jobs:
 
 El primer caller es `andes/api`: imagen `andesnqn/api`, Dockerfile en la raíz del repo. `dockerfile` default es `Dockerfile` y `context` default es `.`, así que ese caller no los pasa.
 
-Corre en `ubuntu-latest`. Los repos son públicos. El token tiene `contents: read`. Hace checkout del repo que llama, con `persist-credentials: false`, entra a Docker Hub, y hace build y push de `linux/amd64`. El push no es opcional.
+Corre en `ubuntu-latest`. Los repos son públicos. El token tiene `contents: read`. Hace checkout del repo que llama, con `persist-credentials: false`, entra a Docker Hub, y hace build y push de `linux/amd64`. El push no es opcional. `ref` es opcional: si viene, el checkout usa ese commit. Si no, usa el del caller. El release pasa el commit que publicó.
 
 `image` es el nombre en Docker Hub, sin tag y en minúsculas. `tags` es uno o más tags separados por coma. Cada tag tiene que matchear `^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$`. Si alguno no matchea, el job falla antes del build. `feat/PACS-7` no es un tag válido. El caller pasa el SHA corto del commit.
 

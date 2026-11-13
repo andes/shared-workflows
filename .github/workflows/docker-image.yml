@@ -29,6 +29,13 @@ on:
         required: false
         type: string
         default: "."
+      ref:
+        description: >
+          Commit o ref a chequear. Vacío usa el commit del caller.
+          El release pasa el commit que publicó.
+        required: false
+        type: string
+        default: ""
     secrets:
       dockerhub_username:
         description: Usuario de Docker Hub. El caller lo pasa desde secrets.DOCKERHUB_USERNAME.
@@ -93,6 +100,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          ref: ${{ inputs.ref || github.sha }}
 
       # Sin registry: login-action entra a Docker Hub.
       - name: Login a Docker Hub
