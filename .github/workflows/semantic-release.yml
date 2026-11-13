@@ -156,7 +156,10 @@ jobs:
               core.info(`Tag ${tag} movido a ${sha}.`);
             } catch (error) {
               const status = error.status ?? error.response?.status;
-              if (status !== 404) {
+              const message = `${error.message || ""} ${error.response?.data?.message || ""}`;
+              // Sin el tag, updateRef responde 422, no 404.
+              const missing = status === 404 || (status === 422 && message.includes("Reference does not exist"));
+              if (!missing) {
                 throw error;
               }
               await github.rest.git.createRef({
