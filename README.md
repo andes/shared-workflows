@@ -113,7 +113,7 @@ Si este repositorio es privado, en Settings → Actions → General → Access h
 
 `.github/workflows/release.yml` lo dispara en cada push a `main`, llamando al archivo de este mismo commit. La llamada de este repo a `andes/shared-workflows/.github/workflows/semantic-release.yml@v1` queda pendiente: el tag todavía no existe.
 
-`branches` default es `['main']` y pisa el `branches` de la config del repo. `skip_npm` default es `true`: con eso no se publica en npm y se reemplazan los plugins de esa config. En `false` usa los plugins de la config del repo y corre `npm ci` solo si hay `package-lock.json`. `dry_run` default es `false`. En `true` analiza y no publica. El tag flotante, si está prendido, tampoco se mueve: la action igual informa un release, así que ese paso mira los dos inputs. `npm_token` hace falta solo cuando el paquete se publica. `release_token` es opcional; si no está, se usa el `GITHUB_TOKEN` del caller.
+`branches` default es `['main']` y pisa el `branches` de la config del repo. `skip_npm` default es `true`: con eso no se publica en npm y se reemplazan los plugins de esa config. En `false` usa los plugins de la config del repo y corre `npm ci` solo si hay `package-lock.json`. `dry_run` default es `false`. En `true` analiza y no publica. El tag flotante, si está prendido, tampoco se mueve: la action igual informa un release, así que ese paso mira los dos inputs. Si publicó y no es dry run, el workflow devuelve `published`, `version` (sin la `v`, por ejemplo `5.148.1`), `sha` y `short_sha`. Si no publicó, quedan vacíos. `npm_token` hace falta solo cuando el paquete se publica. `release_token` es opcional; si no está, se usa el `GITHUB_TOKEN` del caller.
 
 api y app publican desde `master`. El caller tiene que pasar esa rama. Esos repos ya tienen la config de semantic-release en `package.json` (`changelog`, `git`, `npmPublish: false`) y el secreto `DEPLOY_TOKEN`, así que no hay que crear otro.
 
@@ -154,6 +154,50 @@ permissions:
 jobs:
   title:
     uses: andes/shared-workflows/.github/workflows/pr-title.yml@v1
+```
+
+## Imagen de Docker
+
+`.github/workflows/docker-image.yml` construye una imagen y la publica en Docker Hub. El registry es Docker Hub, en el namespace `andesnqn`. No es GHCR ni Artifactory. El nombre de la imagen llega por input; el workflow no lo deja fijo.
+
+El primer caller es `andes/api`: imagen `andesnqn/api`, Dockerfile en la raíz del repo. `dockerfile` default es `Dockerfile` y `context` default es `.`, así que ese caller no los pasa.
+
+Corre en `ubuntu-latest`. Los repos son públicos. El token tiene `contents: read`. Hace checkout del repo que llama, con `persist-credentials: false`, entra a Docker Hub, y hace build y push de `linux/amd64`. El push no es opcional. `ref` es opcional: si viene, el checkout usa ese commit. Si no, usa el del caller. El release pasa el commit que publicó.
+
+`image` es el nombre en Docker Hub, sin tag y en minúsculas. `tags` es uno o más tags separados por coma. Cada tag tiene que matchear `^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$`. Si alguno no matchea, el job falla antes del build. `feat/PACS-7` no es un tag válido. El caller pasa el SHA corto del commit.
+
+Los secrets `dockerhub_username` y `dockerhub_token` son requeridos. El caller los pasa desde `secrets.DOCKERHUB_USERNAME` y `secrets.DOCKERHUB_TOKEN` de su propio repo. Este repositorio no los declara.
+
+El tag flotante `v1` está en `4c9413a` y no incluye este archivo hasta el próximo release 1.x. El caller de prueba apunta al SHA del commit, no a `@v1`. Después de ese release, el ref pasa a `@v1`.
+
+```yaml
+name: Docker image
+
+on:
+  push:
+    branches: [master]
+
+permissions:
+  contents: read
+
+jobs:
+  sha:
+    runs-on: ubuntu-latest
+    outputs:
+      short: ${{ steps.out.outputs.short }}
+    steps:
+      - id: out
+        run: echo "short=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+
+  image:
+    needs: sha
+    uses: andes/shared-workflows/.github/workflows/docker-image.yml@v1
+    with:
+      image: andesnqn/api
+      tags: ${{ needs.sha.outputs.short }}
+    secrets:
+      dockerhub_username: ${{ secrets.DOCKERHUB_USERNAME }}
+      dockerhub_token: ${{ secrets.DOCKERHUB_TOKEN }}
 ```
 
 ## Lint

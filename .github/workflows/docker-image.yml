@@ -1,0 +1,116 @@
+name: Docker image
+
+on:
+  workflow_call:
+    inputs:
+      image:
+        description: >
+          Nombre en Docker Hub, sin tag y en minúsculas.
+          Ejemplo: andesnqn/api.
+        required: true
+        type: string
+      tags:
+        description: >
+          Uno o más tags separados por coma. Cada tag tiene que matchear
+          ^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$.
+          Un nombre de rama como feat/PACS-7 no es válido; el caller pasa el SHA corto.
+        required: true
+        type: string
+      dockerfile:
+        description: Ruta del Dockerfile en el repositorio.
+        required: false
+        type: string
+        default: Dockerfile
+      context:
+        description: Contexto de build.
+        required: false
+        type: string
+        default: "."
+      ref:
+        description: >
+          Commit o ref a chequear. Vacío usa el commit del caller.
+          El release pasa el commit que publicó.
+        required: false
+        type: string
+        default: ""
+    secrets:
+      dockerhub_username:
+        description: Usuario de Docker Hub. El caller lo pasa desde secrets.DOCKERHUB_USERNAME.
+        required: true
+      dockerhub_token:
+        description: Token de Docker Hub. El caller lo pasa desde secrets.DOCKERHUB_TOKEN.
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  image:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validar tags
+        id: tags
+        shell: bash
+        env:
+          IMAGE: ${{ inputs.image }}
+          TAGS: ${{ inputs.tags }}
+        run: |
+          set -euo pipefail
+
+          if [[ ! "${IMAGE}" =~ ^[a-z0-9]+([._-][a-z0-9]+)*/[a-z0-9]+([._-][a-z0-9]+)*$ ]]; then
+            printf '::error::Imagen inválida: %q. Tiene que ser un nombre de Docker Hub sin tag, por ejemplo andesnqn/api.\n' "${IMAGE}"
+            exit 1
+          fi
+
+          if [[ -z "${TAGS}" || "${TAGS}" == *$'\n'* || "${TAGS}" == *$'\r'* ]]; then
+            printf '::error::El input tags está vacío o tiene un salto de línea. Hay que pasar uno o más tags separados por coma.\n'
+            exit 1
+          fi
+
+          list=""
+          rest="${TAGS},"
+          while [[ "${rest}" == *,* ]]; do
+            tag="${rest%%,*}"
+            rest="${rest#*,}"
+            tag="${tag#"${tag%%[![:space:]]*}"}"
+            tag="${tag%"${tag##*[![:space:]]}"}"
+            if [[ ! "${tag}" =~ ^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$ ]]; then
+              printf '::error::Tag inválido: %q. Tiene que matchear ^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$. Un nombre de rama como feat/PACS-7 no es un tag; el caller tiene que pasar el SHA corto.\n' "${tag}"
+              exit 1
+            fi
+            if [[ -n "${list}" ]]; then
+              list+=","
+            fi
+            list+="${IMAGE}:${tag}"
+          done
+
+          if [[ -z "${list}" ]]; then
+            printf '::error::El input tags no tiene ningún tag.\n'
+            exit 1
+          fi
+
+          echo "list=${list}" >> "${GITHUB_OUTPUT}"
+
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          ref: ${{ inputs.ref || github.sha }}
+
+      - name: Login a Docker Hub
+        uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
+        with:
+          username: ${{ secrets.dockerhub_username }}
+          password: ${{ secrets.dockerhub_token }}
+
+      - name: Configurar Buildx
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - name: Build y push
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: ${{ inputs.context }}
+          file: ${{ inputs.dockerfile }}
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.tags.outputs.list }}
