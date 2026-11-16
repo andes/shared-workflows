@@ -76,7 +76,7 @@ config:
 
 ## Node CI
 
-`.github/workflows/node-ci.yml` hace checkout, instala Node y corre los comandos del caller. No incluye el `cp` de la config ni el límite de memoria de `tsc`: eso es de api y entra en `commands`. El runner default es `ubuntu-26.04`. api pasa `ubuntu-22.04` para conservar el build actual. Node default es `22.x` y el install default es `npm ci`.
+`.github/workflows/node-ci.yml` hace checkout, instala Node y corre los comandos del caller. No incluye el `cp` de la config ni el límite de memoria de `tsc`: eso es de api y entra en `commands`. El runner default es `ubuntu-26.04`. api pasa `ubuntu-22.04` para conservar el build actual. Node default es `22.x` y el install default es `npm ci`. `cache` default es vacío y no pide caché explícita. Acepta `npm`, `yarn` o `pnpm`. app pasa `npm` para cachear el lockfile.
 
 ```yaml
 name: Build and test
