@@ -10,11 +10,11 @@ Ese label tiene que existir de antemano en el repositorio que llama. El token de
 
 ### Cómo llamarlo
 
-El caller tiene que usar `pull_request_target` con los tipos `opened`, `synchronize` y `reopened`. Además, para re-chequear los PRs abiertos cuando avanza la rama base, tiene que agregar `push` a esa rama.
+El caller tiene que usar `pull_request` con los tipos `opened`, `synchronize` y `reopened`. Además, para re-chequear los PRs abiertos cuando avanza la rama base, tiene que agregar `push` a esa rama.
 
-Un evento `pull_request` que viene de un fork corre con un `GITHUB_TOKEN` de solo lectura, y ese token no puede etiquetar. `pull_request_target` corre en el contexto del repositorio base y el token sí puede escribir labels ahí.
+Los pull requests de estos repos salen de ramas del mismo repositorio. Con `pull-requests: write`, el token de `pull_request` puede etiquetar. Un pull request que viene de un fork sigue con el token de solo lectura y este workflow no le pone el label.
 
-Ese mismo token tiene escritura sobre el repo base. Este workflow solo consulta la API: no hace checkout del head del pull request y no ejecuta código del fork. El caller tiene que mantener esa misma restricción.
+Este workflow solo consulta la API: no hace checkout del head del pull request y no ejecuta código del pull request. El caller tiene que mantener esa misma restricción.
 
 GitHub calcula `mergeable_state` en segundo plano. En el payload del webhook el valor suele llegar `unknown` o `null`, así que el workflow vuelve a pedir el pull request y reintenta hasta tener un estado definitivo. `dirty` significa que hay conflictos.
 
@@ -24,7 +24,7 @@ En el evento `push`, el workflow lista los PRs abiertos cuya base es la rama pus
 name: Label merge conflicts
 
 on:
-  pull_request_target:
+  pull_request:
     types: [opened, synchronize, reopened]
   push:
     branches: [master] # la rama base del repositorio
