@@ -1,8 +1,8 @@
 name: Label merge conflicts
 
-# El caller lo dispara con pull_request_target (opened, synchronize, reopened) y,
+# El caller lo dispara con pull_request (opened, synchronize, reopened) y,
 # para re-chequear cuando avanza la rama base, con push a esa rama.
-# Sin checkout del head: el token de pull_request_target puede escribir en el repo base.
+# Sin checkout del head. En un PR del mismo repo el token puede escribir labels.
 on:
   workflow_call:
     inputs:
@@ -101,7 +101,7 @@ jobs:
 
             if (context.eventName !== "push") {
               throw new Error(
-                "Call this workflow from pull_request_target (opened, synchronize, reopened) or push to a base branch."
+                "Call this workflow from pull_request (opened, synchronize, reopened) or push to a base branch."
               );
             }
 
