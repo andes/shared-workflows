@@ -33,6 +33,13 @@ on:
         required: false
         type: string
         default: ""
+      repository:
+        description: >
+          Repositorio a chequear, owner/repo. Vacío usa el repo de la corrida.
+          El workflow de api o app lo pasa cuando lo llama el test de integración.
+        required: false
+        type: string
+        default: ""
     secrets:
       dockerhub_username:
         description: Usuario de Docker Hub. El caller lo pasa desde secrets.DOCKERHUB_USERNAME.
@@ -95,6 +102,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          repository: ${{ inputs.repository || github.repository }}
           ref: ${{ inputs.ref || github.sha }}
 
       - name: Login a Docker Hub
