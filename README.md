@@ -200,6 +200,43 @@ jobs:
       dockerhub_token: ${{ secrets.DOCKERHUB_TOKEN }}
 ```
 
+## Terraform
+
+`.github/workflows/terraform.yml` hace checkout y corre `./scripts/terraform-ci.sh plan|apply` en el runner group `central-docker` (label `docker-central`). El script, el state path y las credenciales quedan en cada repo (vsphere, secrets-manager, cloudflare). Este workflow no baja Terraform ni monta Infisical.
+
+`command` es requerido (`plan` o `apply`). `script` default es `./scripts/terraform-ci.sh`.
+
+El caller mantiene `concurrency`, los `if` de plan/apply y el nombre del group de concurrency. Un solo state: `cancel-in-progress: false`.
+
+```yaml
+name: Terraform
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: terraform-cloudflare
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  plan:
+    if: github.event_name == 'pull_request'
+    uses: andes/shared-workflows/.github/workflows/terraform.yml@v1
+    with:
+      command: plan
+
+  apply:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    uses: andes/shared-workflows/.github/workflows/terraform.yml@v1
+    with:
+      command: apply
+```
+
 ## Lint
 
 `.github/workflows/lint.yml` corre actionlint 1.7.12 en cada `push` y `pull_request`. Revisa la sintaxis de los workflows de este repositorio, las expresiones `${{ }}` y los scripts de `run`. El binario se baja del release y se verifica con SHA-256. Los errores quedan anotados en el diff con `.github/actionlint-matcher.json`.

@@ -1,0 +1,49 @@
+name: Terraform
+
+# Checkout y plan|apply. El script del caller baja Terraform, arma creds y corre.
+# Runner fijo: group central-docker / label docker-central (vsphere, secrets-manager, cloudflare).
+on:
+  workflow_call:
+    inputs:
+      command:
+        description: plan o apply.
+        required: true
+        type: string
+      script:
+        description: Script relativo al checkout.
+        required: false
+        type: string
+        default: ./scripts/terraform-ci.sh
+
+permissions:
+  contents: read
+
+jobs:
+  terraform:
+    runs-on:
+      group: central-docker
+      labels: [docker-central]
+    steps:
+      - name: Validar command
+        env:
+          COMMAND: ${{ inputs.command }}
+        run: |
+          set -euo pipefail
+          case "${COMMAND}" in
+            plan|apply) ;;
+            *)
+              printf '::error::command inválido: %q. Usá plan o apply.\n' "${COMMAND}"
+              exit 1
+              ;;
+          esac
+
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Terraform
+        env:
+          COMMAND: ${{ inputs.command }}
+          SCRIPT: ${{ inputs.script }}
+        run: bash --noprofile --norc -euo pipefail "${SCRIPT}" "${COMMAND}"
