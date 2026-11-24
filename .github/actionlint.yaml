@@ -1,4 +1,6 @@
 # actionlint 1.7.12 no trae ubuntu-26.04 entre los labels de GitHub-hosted.
+# docker-central es el label del runner group central-docker (infra Terraform).
 self-hosted-runner:
   labels:
     - ubuntu-26.04
+    - docker-central
