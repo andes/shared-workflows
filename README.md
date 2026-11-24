@@ -202,9 +202,14 @@ jobs:
 
 ## Terraform
 
-`.github/workflows/terraform.yml` corre en el runner group `central-docker` (label `docker-central`). La lógica común (bajar Terraform, validar state dir, Infisical, `init`/`plan`/`apply`) vive en `.github/actions/terraform-ci/`. El workflow chequea ese action del mismo commit (`github.workflow_sha`).
+`.github/workflows/terraform.yml` corre en el runner group `central-docker` (label `docker-central`).
 
-Cada caller solo pasa inputs y, si hace falta, un `pre_script` / `post_apply_script` chico. No copia el bash de Terraform.
+Usa actions estándar:
+
+- `hashicorp/setup-terraform` (wrapper off)
+- `nhedger/setup-sops` cuando `install_sops: true`
+
+Lo andes-específico queda en steps chicos: validar `/opt/andes/terraform-state/<name>`, cargar el dotenv de Infisical a `GITHUB_ENV`, y opcionalmente `pre_script` / `post_apply_script` del caller. Un `pre_script` que necesite exports para Terraform tiene que escribirlos en `GITHUB_ENV`.
 
 Inputs requeridos: `command` (`plan`|`apply`), `working_directory`, `state_name`, `infisical_env_file`.  
 Opcionales: `terraform_version` (default `1.17.2`), `require_existing_state`, `export_project_id`, `install_sops`, `sops_version`, `pre_script`, `post_apply_script`.

@@ -1,7 +1,7 @@
 name: Terraform
 
-# Checkout del caller + action de este mismo commit (github.workflow_sha).
-# Prep/post específicos van por pre_script / post_apply_script del caller.
+# plan|apply en central-docker. Terraform/SOPS con actions estándar;
+# state path e Infisical son lo único andes-específico en bash.
 on:
   workflow_call:
     inputs:
@@ -37,7 +37,7 @@ on:
         type: boolean
         default: true
       install_sops:
-        description: Baja sops al PATH del job.
+        description: Instala sops con nhedger/setup-sops.
         required: false
         type: boolean
         default: false
@@ -47,7 +47,7 @@ on:
         type: string
         default: "3.13.3"
       pre_script:
-        description: Script del caller antes de init. Vacío = skip.
+        description: Script del caller antes de init. Vacío = skip. Debe escribir exports en GITHUB_ENV.
         required: false
         type: string
         default: ""
@@ -65,6 +65,10 @@ jobs:
     runs-on:
       group: central-docker
       labels: [docker-central]
+    env:
+      TF_IN_AUTOMATION: "1"
+      INFISICAL_HOST: https://secrets.andes.gob.ar
+      INFISICAL_AUTH_METHOD: universal
     steps:
       - name: Validar command
         env:
@@ -79,31 +83,122 @@ jobs:
               ;;
           esac
 
-      - name: Checkout caller
+      - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
-      # Action + script del mismo commit del workflow llamado (no el @v1 flotante).
-      - name: Checkout shared-workflows
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
         with:
-          repository: andes/shared-workflows
-          ref: ${{ github.workflow_sha }}
-          path: .shared-workflows
-          persist-credentials: false
-
-      - name: Terraform CI
-        uses: ./.shared-workflows/.github/actions/terraform-ci
-        with:
-          command: ${{ inputs.command }}
-          working_directory: ${{ inputs.working_directory }}
-          state_name: ${{ inputs.state_name }}
           terraform_version: ${{ inputs.terraform_version }}
-          infisical_env_file: ${{ inputs.infisical_env_file }}
-          require_existing_state: ${{ inputs.require_existing_state }}
-          export_project_id: ${{ inputs.export_project_id }}
-          install_sops: ${{ inputs.install_sops }}
-          sops_version: ${{ inputs.sops_version }}
-          pre_script: ${{ inputs.pre_script }}
-          post_apply_script: ${{ inputs.post_apply_script }}
+          terraform_wrapper: false
+
+      - name: Setup SOPS
+        if: inputs.install_sops
+        uses: nhedger/setup-sops@18e52f363488ed469d2e1855e542a1c651743bba # v3.0.0
+        with:
+          version: ${{ inputs.sops_version }}
+          token: ${{ github.token }}
+
+      - name: Validar state
+        env:
+          STATE_NAME: ${{ inputs.state_name }}
+          REQUIRE_EXISTING_STATE: ${{ inputs.require_existing_state }}
+        run: |
+          set -euo pipefail
+          state_dir="/opt/andes/terraform-state/${STATE_NAME}"
+          state_file="${state_dir}/terraform.tfstate"
+          if [[ "${REQUIRE_EXISTING_STATE}" == "true" ]]; then
+            if [[ ! -s "${state_file}" ]]; then
+              echo "ERROR: ${state_file} no existe o está vacío." >&2
+              echo "Copiá el terraform.tfstate actual a esa ruta antes del primer plan." >&2
+              exit 1
+            fi
+            if [[ ! -w "${state_file}" ]]; then
+              echo "ERROR: dentro del contenedor, ${state_file} no se puede escribir." >&2
+              id >&2 || true
+              ls -ld /opt/andes /opt/andes/terraform-state "${state_dir}" >&2 || true
+              exit 1
+            fi
+          else
+            if [[ ! -d "${state_dir}" || ! -w "${state_dir}" ]]; then
+              echo "ERROR: dentro del contenedor, ${state_dir} no existe o no se puede escribir." >&2
+              id >&2 || true
+              ls -ld /opt/andes /opt/andes/terraform-state "${state_dir}" >&2 || true
+              echo "En la VM del runner:" >&2
+              echo "  sudo install -d -o runner-deployer -g redtics -m 2770 /opt/andes/terraform-state" >&2
+              echo "  sudo install -d -o runner-deployer -g redtics -m 2770 ${state_dir}" >&2
+              exit 1
+            fi
+          fi
+          echo "TF_STATE_DIR=${state_dir}" >> "${GITHUB_ENV}"
+
+      - name: Cargar Infisical
+        env:
+          INFISICAL_ENV_FILE: ${{ inputs.infisical_env_file }}
+          EXPORT_PROJECT_ID: ${{ inputs.export_project_id }}
+          INSTALL_SOPS: ${{ inputs.install_sops }}
+        run: |
+          set -euo pipefail
+          cred="${INFISICAL_ENV_FILE}"
+          if [[ -z "${INFISICAL_UNIVERSAL_AUTH_CLIENT_ID:-}" || -z "${INFISICAL_UNIVERSAL_AUTH_CLIENT_SECRET:-}" ]]; then
+            if [[ ! -r "${cred}" ]]; then
+              echo "ERROR: no se puede leer ${cred}" >&2
+              exit 1
+            fi
+            set -a
+            # shellcheck disable=SC1090
+            source "${cred}"
+            set +a
+          fi
+          : "${INFISICAL_UNIVERSAL_AUTH_CLIENT_ID:?falta INFISICAL_UNIVERSAL_AUTH_CLIENT_ID}"
+          : "${INFISICAL_UNIVERSAL_AUTH_CLIENT_SECRET:?falta INFISICAL_UNIVERSAL_AUTH_CLIENT_SECRET}"
+          echo "::add-mask::${INFISICAL_UNIVERSAL_AUTH_CLIENT_SECRET}"
+          {
+            echo "INFISICAL_UNIVERSAL_AUTH_CLIENT_ID=${INFISICAL_UNIVERSAL_AUTH_CLIENT_ID}"
+            echo "INFISICAL_UNIVERSAL_AUTH_CLIENT_SECRET=${INFISICAL_UNIVERSAL_AUTH_CLIENT_SECRET}"
+          } >> "${GITHUB_ENV}"
+          if [[ "${EXPORT_PROJECT_ID}" == "true" ]]; then
+            : "${INFISICAL_PROJECT_ID:?falta INFISICAL_PROJECT_ID en ${cred}}"
+            {
+              echo "INFISICAL_PROJECT_ID=${INFISICAL_PROJECT_ID}"
+              echo "TF_VAR_infisical_project_id=${INFISICAL_PROJECT_ID}"
+            } >> "${GITHUB_ENV}"
+          fi
+          if [[ "${INSTALL_SOPS}" == "true" && -z "${SOPS_AGE_SSH_PRIVATE_KEY_FILE:-}" ]]; then
+            if [[ -r /opt/andes/secrets-manager/id_ed25519 ]]; then
+              echo "SOPS_AGE_SSH_PRIVATE_KEY_FILE=/opt/andes/secrets-manager/id_ed25519" >> "${GITHUB_ENV}"
+            elif [[ -r /home/runner-deployer/.ssh/id_ed25519 ]]; then
+              echo "SOPS_AGE_SSH_PRIVATE_KEY_FILE=/home/runner-deployer/.ssh/id_ed25519" >> "${GITHUB_ENV}"
+            else
+              echo "ERROR: no se puede leer la privada de runner-deployer para SOPS." >&2
+              exit 1
+            fi
+          fi
+
+      - name: Prep
+        if: inputs.pre_script != ''
+        env:
+          PRE_SCRIPT: ${{ inputs.pre_script }}
+        run: bash --noprofile --norc -euo pipefail "${GITHUB_WORKSPACE}/${PRE_SCRIPT}"
+
+      - name: Terraform init
+        working-directory: ${{ inputs.working_directory }}
+        run: terraform init -input=false -backend-config="path=${TF_STATE_DIR}/terraform.tfstate"
+
+      - name: Terraform plan
+        if: inputs.command == 'plan'
+        working-directory: ${{ inputs.working_directory }}
+        run: terraform plan -input=false -no-color
+
+      - name: Terraform apply
+        if: inputs.command == 'apply'
+        working-directory: ${{ inputs.working_directory }}
+        run: terraform apply -input=false -auto-approve -no-color
+
+      - name: Post apply
+        if: inputs.command == 'apply' && inputs.post_apply_script != ''
+        env:
+          POST_APPLY_SCRIPT: ${{ inputs.post_apply_script }}
+        run: bash --noprofile --norc -euo pipefail "${GITHUB_WORKSPACE}/${POST_APPLY_SCRIPT}"
