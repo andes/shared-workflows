@@ -1,7 +1,7 @@
 name: Terraform
 
-# Checkout y plan|apply. El script del caller baja Terraform, arma creds y corre.
-# Runner fijo: group central-docker / label docker-central (vsphere, secrets-manager, cloudflare).
+# Checkout del caller + action de este mismo commit (github.workflow_sha).
+# Prep/post específicos van por pre_script / post_apply_script del caller.
 on:
   workflow_call:
     inputs:
@@ -9,11 +9,53 @@ on:
         description: plan o apply.
         required: true
         type: string
-      script:
-        description: Script relativo al checkout.
+      working_directory:
+        description: Directorio Terraform relativo al checkout.
+        required: true
+        type: string
+      state_name:
+        description: Nombre bajo /opt/andes/terraform-state/<state_name>.
+        required: true
+        type: string
+      terraform_version:
+        description: Versión de Terraform.
         required: false
         type: string
-        default: ./scripts/terraform-ci.sh
+        default: "1.17.2"
+      infisical_env_file:
+        description: Dotenv con INFISICAL_UNIVERSAL_AUTH_*.
+        required: true
+        type: string
+      require_existing_state:
+        description: Si true, el tfstate tiene que existir (vsphere).
+        required: false
+        type: boolean
+        default: false
+      export_project_id:
+        description: Exporta INFISICAL_PROJECT_ID como TF_VAR_infisical_project_id.
+        required: false
+        type: boolean
+        default: true
+      install_sops:
+        description: Baja sops al PATH del job.
+        required: false
+        type: boolean
+        default: false
+      sops_version:
+        description: Versión de sops.
+        required: false
+        type: string
+        default: "3.13.3"
+      pre_script:
+        description: Script del caller antes de init. Vacío = skip.
+        required: false
+        type: string
+        default: ""
+      post_apply_script:
+        description: Script del caller después de apply. Vacío = skip.
+        required: false
+        type: string
+        default: ""
 
 permissions:
   contents: read
@@ -37,13 +79,31 @@ jobs:
               ;;
           esac
 
-      - name: Checkout
+      - name: Checkout caller
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
-      - name: Terraform
-        env:
-          COMMAND: ${{ inputs.command }}
-          SCRIPT: ${{ inputs.script }}
-        run: bash --noprofile --norc -euo pipefail "${SCRIPT}" "${COMMAND}"
+      # Action + script del mismo commit del workflow llamado (no el @v1 flotante).
+      - name: Checkout shared-workflows
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: andes/shared-workflows
+          ref: ${{ github.workflow_sha }}
+          path: .shared-workflows
+          persist-credentials: false
+
+      - name: Terraform CI
+        uses: ./.shared-workflows/.github/actions/terraform-ci
+        with:
+          command: ${{ inputs.command }}
+          working_directory: ${{ inputs.working_directory }}
+          state_name: ${{ inputs.state_name }}
+          terraform_version: ${{ inputs.terraform_version }}
+          infisical_env_file: ${{ inputs.infisical_env_file }}
+          require_existing_state: ${{ inputs.require_existing_state }}
+          export_project_id: ${{ inputs.export_project_id }}
+          install_sops: ${{ inputs.install_sops }}
+          sops_version: ${{ inputs.sops_version }}
+          pre_script: ${{ inputs.pre_script }}
+          post_apply_script: ${{ inputs.post_apply_script }}

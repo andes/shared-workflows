@@ -202,11 +202,14 @@ jobs:
 
 ## Terraform
 
-`.github/workflows/terraform.yml` hace checkout y corre `./scripts/terraform-ci.sh plan|apply` en el runner group `central-docker` (label `docker-central`). El script, el state path y las credenciales quedan en cada repo (vsphere, secrets-manager, cloudflare). Este workflow no baja Terraform ni monta Infisical.
+`.github/workflows/terraform.yml` corre en el runner group `central-docker` (label `docker-central`). La lógica común (bajar Terraform, validar state dir, Infisical, `init`/`plan`/`apply`) vive en `.github/actions/terraform-ci/`. El workflow chequea ese action del mismo commit (`github.workflow_sha`).
 
-`command` es requerido (`plan` o `apply`). `script` default es `./scripts/terraform-ci.sh`.
+Cada caller solo pasa inputs y, si hace falta, un `pre_script` / `post_apply_script` chico. No copia el bash de Terraform.
 
-El caller mantiene `concurrency`, los `if` de plan/apply y el nombre del group de concurrency. Un solo state: `cancel-in-progress: false`.
+Inputs requeridos: `command` (`plan`|`apply`), `working_directory`, `state_name`, `infisical_env_file`.  
+Opcionales: `terraform_version` (default `1.17.2`), `require_existing_state`, `export_project_id`, `install_sops`, `sops_version`, `pre_script`, `post_apply_script`.
+
+El caller mantiene `concurrency`, los `if` de plan/apply y el nombre del group. Un solo state: `cancel-in-progress: false`.
 
 ```yaml
 name: Terraform
@@ -229,12 +232,18 @@ jobs:
     uses: andes/shared-workflows/.github/workflows/terraform.yml@v1
     with:
       command: plan
+      working_directory: dns
+      state_name: cloudflare
+      infisical_env_file: /home/runner-deployer/.config/infisical/cloudflare.env
 
   apply:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     uses: andes/shared-workflows/.github/workflows/terraform.yml@v1
     with:
       command: apply
+      working_directory: dns
+      state_name: cloudflare
+      infisical_env_file: /home/runner-deployer/.config/infisical/cloudflare.env
 ```
 
 ## Lint
