@@ -56,9 +56,15 @@ on:
         required: false
         type: string
         default: ""
+      post_plan_comment:
+        description: Si true y el caller es pull_request, publica el plan como comment sticky en el PR.
+        required: false
+        type: boolean
+        default: true
 
 permissions:
   contents: read
+  pull-requests: write
 
 jobs:
   terraform:
@@ -189,8 +195,84 @@ jobs:
 
       - name: Terraform plan
         if: inputs.command == 'plan'
+        id: plan
         working-directory: ${{ inputs.working_directory }}
-        run: terraform plan -input=false -no-color
+        run: |
+          set -euo pipefail
+          terraform plan -input=false -no-color -out=tfplan
+          terraform show -no-color tfplan | tee "${GITHUB_WORKSPACE}/andes-tf-plan.txt"
+
+      - name: Comment plan on PR
+        if: >
+          inputs.command == 'plan' &&
+          inputs.post_plan_comment &&
+          github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PLAN_FILE: ${{ github.workspace }}/andes-tf-plan.txt
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          MARKER: "<!-- andes-terraform-plan -->"
+        run: |
+          set -euo pipefail
+          if [[ ! -f "${PLAN_FILE}" ]]; then
+            echo "ERROR: no hay ${PLAN_FILE}" >&2
+            exit 1
+          fi
+          if ! command -v gh >/dev/null; then
+            echo "ERROR: falta gh en el runner" >&2
+            exit 1
+          fi
+
+          summary="$(grep -E '^Plan: ' "${PLAN_FILE}" | tail -n1 || true)"
+          if [[ -z "${summary}" ]]; then
+            if grep -q 'No changes' "${PLAN_FILE}"; then
+              summary="No changes. Your infrastructure matches the configuration."
+            else
+              summary="(sin línea Plan: — ver detalle)"
+            fi
+          fi
+
+          # Límite conservador del body de un issue comment (~65536).
+          max=58000
+          plan_body="$(cat "${PLAN_FILE}")"
+          truncated=0
+          if ((${#plan_body} > max)); then
+            plan_body="${plan_body:0:max}"
+            truncated=1
+          fi
+
+          body_file="$(mktemp)"
+          {
+            printf '%s\n' "${MARKER}"
+            printf '## Terraform plan\n\n'
+            printf '%s\n\n' "${summary}"
+            printf 'Run: %s\n\n' "${RUN_URL}"
+            printf '<details>\n<summary>Detalle</summary>\n\n'
+            printf '```hcl\n'
+            printf '%s\n' "${plan_body}"
+            if [[ "${truncated}" == "1" ]]; then
+              printf '\n… truncado (%s chars). Ver el log del run.\n' "${max}"
+            fi
+            printf '```\n\n</details>\n'
+          } >"${body_file}"
+
+          existing_id="$(
+            MARKER="${MARKER}" gh api \
+              "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments?per_page=100" \
+              --jq '[.[] | select(.body | contains(env.MARKER)) | .id] | .[0] // empty'
+          )"
+
+          if [[ -n "${existing_id}" ]]; then
+            gh api -X PATCH "repos/${GITHUB_REPOSITORY}/issues/comments/${existing_id}" \
+              -F "body=@${body_file}"
+            echo "Plan comment actualizado (#${existing_id})"
+          else
+            gh api -X POST "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments" \
+              -F "body=@${body_file}"
+            echo "Plan comment creado"
+          fi
+          rm -f "${body_file}"
 
       - name: Terraform apply
         if: inputs.command == 'apply'

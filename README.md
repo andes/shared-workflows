@@ -211,8 +211,10 @@ Usa actions estándar:
 
 Lo andes-específico queda en steps chicos: validar `/opt/andes/terraform-state/<name>`, cargar el dotenv de Infisical a `GITHUB_ENV`, y opcionalmente `pre_script` / `post_apply_script` del caller. Un `pre_script` que necesite exports para Terraform tiene que escribirlos en `GITHUB_ENV`.
 
+En `command: plan` sobre un `pull_request`, por default publica un **comment sticky** en el PR (`<!-- andes-terraform-plan -->`) con el resumen `Plan: …` y el detalle en un `<details>`. Se actualiza en cada push. Apagar con `post_plan_comment: false`. El caller necesita `pull-requests: write`.
+
 Inputs requeridos: `command` (`plan`|`apply`), `working_directory`, `state_name`, `infisical_env_file`.  
-Opcionales: `terraform_version` (default `1.17.2`), `require_existing_state`, `export_project_id`, `install_sops`, `sops_version`, `pre_script`, `post_apply_script`.
+Opcionales: `terraform_version` (default `1.17.2`), `require_existing_state`, `export_project_id`, `install_sops`, `sops_version`, `pre_script`, `post_apply_script`, `post_plan_comment` (default `true`).
 
 El caller mantiene `concurrency`, los `if` de plan/apply y el nombre del group. Un solo state: `cancel-in-progress: false`.
 
@@ -230,6 +232,7 @@ concurrency:
 
 permissions:
   contents: read
+  pull-requests: write
 
 jobs:
   plan:
