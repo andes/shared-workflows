@@ -42,6 +42,61 @@ jobs:
 
 `with.label` es opcional.
 
+## Cambios requeridos y aprobado
+
+`.github/workflows/label-changes-requested.yml` mantiene los labels de revisión: pone `Cambio Requerido` cuando la última review de algún usuario pide cambios, y pone `Aprobado` cuando hay la cantidad de aprobaciones pedida y el pull request no está `En desarrollo`. Mientras una de las dos condiciones no se cumpla, saca el label que no corresponde.
+
+Los labels tienen que existir de antemano en el repositorio que llama. El token tiene `contents: read` y `pull-requests: write`, igual que el de conflictos.
+
+El caller lo dispara con `pull_request_review` (`submitted`, `edited`, `dismissed`). No hace checkout del head: solo consulta la API de reviews.
+
+```yaml
+name: Changes requested y Aprobado label
+
+on:
+  pull_request_review:
+    types: [submitted, edited, dismissed]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  changes-requested:
+    uses: andes/shared-workflows/.github/workflows/label-changes-requested.yml@v1
+    with:
+      changes_requested_label: Cambio Requerido
+      approved_label: Aprobado
+      in_progress_label: En desarrollo
+      min_approvals: 2
+```
+
+`min_approvals` es `number`, con default `2`. Los tres labels de `with` son opcionales y coinciden con los defaults.
+
+## Pull request vinculado a Andes
+
+`.github/workflows/label-andes.yml` pone el label `Andes` cuando el body del pull request linkea un pull request de `andes/app` o `andes/api`, y lo saca cuando deja de hacerlo. El patrón es fijo: `https://github.com/andes/(app|api)/pull/<n>`.
+
+El caller lo dispara con `pull_request` (`opened`, `edited`, `synchronize`, `reopened`). El label es un input con default `Andes`.
+
+```yaml
+name: Andes linked PR label
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  andes-linked:
+    uses: andes/shared-workflows/.github/workflows/label-andes.yml@v1
+    with:
+      label: Andes
+```
+
 ## Labeler
 
 `.github/workflows/labeler.yml` aplica labels según los archivos que toca el pull request. Usa `actions/labeler` v7.0.0 pinneado (`bf12e9b00b37c5c0ca2b87b79b2daf7891dbda13`) en `ubuntu-26.04`. La config de globs no vive acá: cada repo mantiene su `.github/labeler.yml` en el formato de v7.
